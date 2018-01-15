@@ -1,14 +1,14 @@
 [
 {
-  "modid": "examplemod",
-  "name": "Example Mod",
-  "description": "Example placeholder mod.",
+  "modid": "mazeseedmod",
+  "name": "Maze Seed Mod",
+  "description": "Create a maze by using a Maze Seed on a block, and find the diamond hidden in a chest!",
   "version": "${version}",
   "mcversion": "${mcversion}",
   "url": "",
   "updateUrl": "",
-  "authorList": ["ExampleDude"],
-  "credits": "The Forge and FML guys, for making this example",
+  "authorList": ["timbarrass"],
+  "credits": "",
   "logoFile": "",
   "screenshots": [],
   "dependencies": []
