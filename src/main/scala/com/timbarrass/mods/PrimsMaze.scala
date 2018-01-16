@@ -4,77 +4,88 @@ import scala.collection.mutable
 import scala.collection.mutable.Set
 import scala.util.Random
 
-class PrimsMaze(w:Int, h:Int, scale: Int) {
-  val r = new Random
+class PrimsMaze(width:Int, height:Int, scale: Int) {
+  private val r = new Random
+  private val neighbours = initNeighbours // neighbours is basically the static config that makes this a maze solver
 
-  val width  = w
-  val height = h
+  val finalMaze = process(randomCell(width, height))
 
-  val white = Array.fill[Boolean](width, height) { false }
-  var grey = Set[Cell]()
-
-  val neighbours = initNeighbours
-
-  chooseFirstCell
-
-  val tree = process(grey, Array.fill[mutable.Set[Cell]](width, height) { Set() })
-
-  transformToFinalGrid
+  val finalGrid = transformToFinalGrid(finalMaze)
 
 
 
-  def transformToFinalGrid: Unit = {
-    val finalGrid = Array.fill[String](width * (scale + 1) + 1, height * (scale + 1) + 1) {
-      "#"
-    }
+  def fullFinalGrid: Array[Array[Boolean]] = {
+    Array.fill[Boolean](width * (scale + 1) + 1, height * (scale + 1) + 1) { true } // true => wall
+  }
+
+  private def emptyTree: Array[Array[mutable.Set[Cell]]] = {
+    Array.fill[mutable.Set[Cell]](width, height) { Set() }
+  }
+
+  def transformToFinalGrid(finalMaze: Array[Array[mutable.Set[Cell]]]): Array[Array[Boolean]] = {
+    transformToFinalGrid(finalMaze, fullFinalGrid)
+  }
+
+  def transformToFinalGrid(finalMaze: Array[Array[mutable.Set[Cell]]], finalGrid: Array[Array[Boolean]]): Array[Array[Boolean]] = {
 
     for (
       y <- 0 until height;
       x <- 0 until width
     ) {
+
+      // clear out the cell first
       for (
         yStep <- 1 until scale + 1;
         xStep <- 1 until scale + 1
       ) {
-        finalGrid(transform(x, scale, xStep))(transform(y, scale, yStep)) = " "
+        finalGrid(transform(x, scale, xStep))(transform(y, scale, yStep)) = false // false => no wall
       }
 
-      for (n <- tree(x)(y)) {
+      for (n <- finalMaze(x)(y)) {
+        // clear x-axis routes
         if (n.x == x) {
           val yWall = (scale + 1) * math.max(n.y, y)
           val xWallStart = (scale + 1) * n.x + 1
 
           for (xWall <- xWallStart until xWallStart + scale) {
-            finalGrid(xWall)(yWall) = " "
+            finalGrid(xWall)(yWall) = false
           }
         }
 
+        // clear y-axis routes
         if (n.y == y) {
           val yWallStart = (scale + 1) * n.y + 1
           val xWall = (scale + 1) * math.max(n.x, x)
 
           for (yWall <- yWallStart until yWallStart + scale) {
-            finalGrid(xWall)(yWall) = " "
+            finalGrid(xWall)(yWall) = false
           }
         }
       }
     }
 
+    // clear an entrance
     val entrance: Int = (scale + 1) * Random.nextInt(width) + 1
-    val exit: Int = (scale + 1) * Random.nextInt(width) + 1
     for (x <- entrance until entrance + scale) {
-      finalGrid(x)(0) = " "
+      finalGrid(x)(0) = false
     }
-    for (x <- exit until exit + scale) {
-      finalGrid(x)(height) = " "
-    }
+
+    finalGrid
   }
 
-  def transform(x: Int, scale: Int, step: Int): Int = {
+  private def transform(x: Int, scale: Int, step: Int): Int = {
     (scale + 1) * x + step
   }
 
-  def process(grey: mutable.Set[Cell], tree: Array[Array[mutable.Set[Cell]]]): Array[Array[mutable.Set[Cell]]] =
+  def process(c: Cell) : Array[Array[mutable.Set[Cell]]] = {
+    process(initGreyListNeighbours(c), initWhiteList(c))
+  }
+
+  def process(grey: mutable.Set[Cell], white: Array[Array[Boolean]]): Array[Array[mutable.Set[Cell]]] = {
+    process(grey, white, emptyTree)
+  }
+
+  def process(grey: mutable.Set[Cell], white: Array[Array[Boolean]], tree: Array[Array[mutable.Set[Cell]]]): Array[Array[mutable.Set[Cell]]] =
   {
     if (grey.isEmpty) {
       tree
@@ -90,11 +101,11 @@ class PrimsMaze(w:Int, h:Int, scale: Int) {
       // just randomly choose one unconsidered neighbour
       tree(c.x)(c.y) += neighbours(c.x)(c.y).filter(n => { white(n.x)(n.y) }).head
 
-      process(grey union neighbours(c.x)(c.y).filterNot( n => white(n.x)(n.y) ), tree)
+      process(grey union neighbours(c.x)(c.y).filterNot( n => white(n.x)(n.y) ), white, tree)
     }
   }
 
-  def initNeighbours: Array[Array[mutable.Set[Cell]]] = {
+  private def initNeighbours: Array[Array[mutable.Set[Cell]]] = {
     val neighbours = Array.fill[mutable.Set[Cell]](width, height) {
       Set()
     }
@@ -112,17 +123,27 @@ class PrimsMaze(w:Int, h:Int, scale: Int) {
     neighbours
   }
 
+  private def randomCell(width:Int, height:Int): Cell = {
+    Cell(r.nextInt(width - 1), r.nextInt(height - 1))
+  }
 
-  private def chooseFirstCell: Unit = {
-
-    val c = Cell(r.nextInt(width - 1), r.nextInt(height - 1))
+  private def initWhiteList(c: Cell): Array[Array[Boolean]] = {
+    val white = Array.fill[Boolean](width, height) { false }
 
     white(c.x)(c.y) = true
+
+    white
+  }
+
+  private def initGreyListNeighbours(c: Cell): mutable.Set[Cell] = {
+    val grey = Set[Cell]()
 
     for (n <- neighbours(c.x)(c.y)) {
       if (!grey.contains(n)) {
         grey += n
       }
     }
+
+    grey
   }
 }

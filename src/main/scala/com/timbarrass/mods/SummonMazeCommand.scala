@@ -72,7 +72,7 @@ class SummonMazeCommand extends CommandBase {
     val m = new PrimsMaze(10, 10, scale)
     for (y <- 0 to (10 * 2)) {
       for (x <- 0 to (10 * 2)) {
-        print(m.finalGrid(x)(y))
+        if(m.finalGrid(x)(y)) { print("#") } else { print(" ") }
       }
       println()
     }
@@ -192,7 +192,7 @@ object SummonMazeCommand {
         val pos: BlockPos = new BlockPos(xp, blockPos.getY(), zp)
         val upperPos: BlockPos = new BlockPos(xp, blockPos.getY() + 1, zp)
 
-        if (m.finalGrid(x)(z).equals("#")) {
+        if (m.finalGrid(x)(z)) {
           SetBlock(world, pos, wallBlock)
           SetBlock(world, upperPos, wallBlock)
         }
@@ -200,8 +200,6 @@ object SummonMazeCommand {
 
       val chunkMap: mutable.HashMap[Chunk, BlockPos] = mutable.HashMap()
 
-      // mark chunks dirty
-      //    world.markChunkDirty(blockpos, null)
       for (
         z <- 0 until (scale + 1) * height + 1;
         x <- 0 until (scale + 1) * width + 1
