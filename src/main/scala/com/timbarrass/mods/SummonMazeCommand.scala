@@ -2,6 +2,7 @@ package com.timbarrass.mods
 
 import java.util
 
+import com.timbarrass.mazes.{Maze, MazeTransform}
 import net.minecraft.block.Block
 import net.minecraft.block.state.IBlockState
 import net.minecraft.command._
@@ -69,14 +70,7 @@ class SummonMazeCommand extends CommandBase {
     val width = 10
     val scale = 2
 
-    val m = new PrimsMaze(10, 10, scale)
-    for (y <- 0 to (10 * 2)) {
-      for (x <- 0 to (10 * 2)) {
-        if(m.finalGrid(x)(y)) { print("#") } else { print(" ") }
-      }
-      println()
-    }
-
+    val m = Maze.generateMaze(10, 10)
     var xOffset: Int = 0
     var yOffset: Int = 0
     if (dir < 45 || dir >= 320) {
@@ -152,8 +146,11 @@ object SummonMazeCommand {
     }
   }
 
-  def BuildMaze(blockPos: BlockPos, world: World, height: Int, width: Int, m: PrimsMaze, xOffset: Int, yOffset: Int, wallBlock: Block, baseBlock: Block, scale: Int): Unit = {
+  def BuildMaze(blockPos: BlockPos, world: World, height: Int, width: Int, m: Maze, xOffset: Int, yOffset: Int, wallBlock: Block, baseBlock: Block, scale: Int): Unit = {
     if (!world.isRemote) {
+
+      // lookup and values here are just for doing something special with regions
+      val finalGrid = MazeTransform.transformToGrid(m, 2, 1, 0, (x, y) => { 0 })
 
       // first clear the ground
       for (
@@ -192,7 +189,7 @@ object SummonMazeCommand {
         val pos: BlockPos = new BlockPos(xp, blockPos.getY(), zp)
         val upperPos: BlockPos = new BlockPos(xp, blockPos.getY() + 1, zp)
 
-        if (m.finalGrid(x)(z)) {
+        if (finalGrid(x)(z) == 1) {
           SetBlock(world, pos, wallBlock)
           SetBlock(world, upperPos, wallBlock)
         }

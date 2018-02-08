@@ -1,5 +1,6 @@
 package com.timbarrass.mods
 
+import com.timbarrass.mazes.Maze
 import net.minecraft.creativetab.CreativeTabs
 import net.minecraft.entity.player.EntityPlayer
 import net.minecraft.item.{Item, ItemStack}
@@ -30,7 +31,7 @@ class MazeSeedItem(name: String) extends Item {
     val height = 10
     val scale = 2
 
-    val m = new PrimsMaze(width, height, scale)
+    val m = Maze.generateMaze(width, height)
 
     var xOffset: Int = 0
     var yOffset: Int = 0
