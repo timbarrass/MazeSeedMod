@@ -27,8 +27,8 @@ class MazeSeedItem(name: String) extends Item {
     var dir = playerIn.rotationYaw % 360
     if (dir < 0) dir += 360
 
-    val width = 10
-    val height = 10
+    val width = 3
+    val height = 3
     val scale = 2
 
     val m = Maze.generateMaze(width, height)

@@ -2,7 +2,9 @@ package com.timbarrass.mods
 
 import java.util
 
+import akka.actor.{Actor, ActorSystem, Props}
 import com.timbarrass.mazes.{Maze, MazeTransform}
+import com.typesafe.config.{Config, ConfigFactory}
 import net.minecraft.block.Block
 import net.minecraft.block.state.IBlockState
 import net.minecraft.command._
@@ -16,9 +18,12 @@ import net.minecraft.world.chunk.Chunk
 import net.minecraftforge.items.CapabilityItemHandler
 
 import scala.collection.mutable
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.Random
 
 class SummonMazeCommand extends CommandBase {
+
   override def getCommandName: String = {
     return "summonmaze"
   }
@@ -98,7 +103,53 @@ class SummonMazeCommand extends CommandBase {
   }
 }
 
+case class NudgedActor(m: Maze, world: World, marker: BlockPos, xOffset: Int, yOffset: Int, scale: Int) extends Actor {
+
+  override def preStart(): Unit = {
+    self ! "Nudge"
+  }
+
+  def receive = {
+    case "Nudge" =>
+      doWork
+      context.system.scheduler.scheduleOnce(10 seconds, self, "Nudge")
+  }
+
+  def doWork = {
+    val made = m.makeALink
+
+    MazeTransform.clearWall(
+      scale,
+      (xWall, yWall, x, y) => {
+        val xp = xWall + xOffset + marker.getX()
+        val zp = yWall + yOffset + marker.getZ()
+        val pos: BlockPos = new BlockPos(xp, marker.getY() + 1, zp)
+        val lowerPos: BlockPos = new BlockPos(xp, marker.getY(), zp)
+
+        println("Made=================")
+        println(made)
+        println(xp + " " + zp)
+        println(pos)
+        println("=====================")
+
+        SummonMazeCommand.SetBlock(world, pos, Blocks.air)
+        SummonMazeCommand.SetBlock(world, lowerPos, Blocks.air)
+
+      },
+      made._1.y,
+      made._1.x,
+      made._2)
+
+  }
+}
+
 object SummonMazeCommand {
+
+  // Handle periodic automatic changes to the maze
+  // Interesting thing is that these mazes aren't persisted as mazes .. so once you've
+  // quit and restarted their dynamic state will be lost, and they'll be frozen
+  private val system = ActorSystem("MySystem")
+
   def CompareClientAndServer(blockPos: BlockPos, world: World, height: Int, width: Int, xOffset: Int, yOffset: Int, scale: Int): Unit = {
     for (
       z <- 0 until (scale + 1) * height + 1;
@@ -227,6 +278,8 @@ object SummonMazeCommand {
       ) {
         world.markChunkDirty(v, null)
       }
+
+      system.actorOf(Props(new NudgedActor(m, world, blockPos, xOffset, yOffset, scale)), "NudgedActor")
     }
   }
 }

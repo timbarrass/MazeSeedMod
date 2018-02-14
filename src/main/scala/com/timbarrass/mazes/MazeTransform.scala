@@ -3,7 +3,7 @@ package com.timbarrass.mazes
 import scala.reflect.ClassTag
 
 object MazeTransform {
-  private def transform(x: Int, scale: Int, step: Int): Int = {
+  def transform(x: Int, scale: Int, step: Int): Int = {
     (scale + 1) * x + step
   }
 
@@ -30,24 +30,7 @@ object MazeTransform {
 
       for (n <- m.routes(x)(y)) {
         // clear x-axis routes
-        if (n.x == x) {
-          val yWall = transform(math.max(n.y, y), scale, 0)
-          val xWallStart = transform(n.x, scale, 1)
-
-          for (xWall <- xWallStart until xWallStart + scale) {
-            grid(xWall)(yWall) = lookup(x, y)
-          }
-        }
-
-        // clear y-axis routes
-        if (n.y == y) {
-          val yWallStart = transform(n.y, scale, 1)
-          val xWall = transform(math.max(n.x, x), scale, 0)
-
-          for (yWall <- yWallStart until yWallStart + scale) {
-            grid(xWall)(yWall) = lookup(x, y)
-          }
-        }
+        clearWall(scale, (xWall, yWall, x, y) => { grid(xWall)(yWall) = lookup(x, y) }, y, x, n)
       }
     }
 
@@ -59,5 +42,27 @@ object MazeTransform {
     }
 
     grid
+  }
+
+  def clearWall[T: ClassTag](scale: Int, clear: (Int, Int, Int, Int) => Unit, y: Int, x: Int, n: Cell): Unit = {
+
+    if (n.x == x) {
+      val yWall = transform(math.max(n.y, y), scale, 0)
+      val xWallStart = transform(n.x, scale, 1)
+
+      for (xWall <- xWallStart until xWallStart + scale) {
+        clear(xWall, yWall, x, y)
+      }
+    }
+
+    // clear y-axis routes
+    if (n.y == y) {
+      val yWallStart = transform(n.y, scale, 1)
+      val xWall = transform(math.max(n.x, x), scale, 0)
+
+      for (yWall <- yWallStart until yWallStart + scale) {
+        clear(xWall, yWall, x, y)
+      }
+    }
   }
 }
