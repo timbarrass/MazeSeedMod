@@ -222,15 +222,15 @@ class MazeTest extends FlatSpec with MustMatchers {
 
     val initialRegionCount = maxRegion(mp)
 
-    val t = MazeTransform.transformToGrid[Int](mp, 2, 99, 100, (x, y) => { mp.regions(x, y) })
-    MazePublish.display[Int](t, (c: Int) => { if( c == 99 ) 'X' else if ( c == 100 ) ' ' else (c + 48).toChar})
+//    val t = MazeTransform.transformToGrid[Int](mp, 2, 99, 100, (x, y) => { mp.regions(x, y) })
+//    MazePublish.display[Int](t, (c: Int) => { if( c == 99 ) 'X' else if ( c == 100 ) ' ' else (c + 48).toChar})
 
     mp joinRegions
 
     maxRegion(mp) must equal(initialRegionCount - 1)
 
-    val tp = MazeTransform.transformToGrid[Int](mp, 2, 99, 100, (x, y) => { mp.regions(x, y) })
-    MazePublish.display[Int](tp, (c: Int) => { if( c == 99 ) 'X' else if ( c == 100 ) ' ' else (c + 48).toChar})
+//    val tp = MazeTransform.transformToGrid[Int](mp, 2, 99, 100, (x, y) => { mp.regions(x, y) })
+//    MazePublish.display[Int](tp, (c: Int) => { if( c == 99 ) 'X' else if ( c == 100 ) ' ' else (c + 48).toChar})
   }
 
   "breakALink" must "break a link and cause regions to be redetermined" in {
@@ -273,6 +273,43 @@ class MazeTest extends FlatSpec with MustMatchers {
     // and form a link between them
     // so every time you call joinRegions the number of regions should reduce by one
   }
+
+  "makeALink" must "make a link and cause regions to be redetermined" in {
+    val routes = Array.fill[mutable.Set[Cell]](3, 4) { mutable.Set() }
+//    routes(0)(0) += (Cell(1, 0), Cell(0,1))
+//    routes(1)(0) += (Cell(0, 0), Cell(1,1))
+//    routes(2)(0) += (Cell(2, 1))
+//    routes(0)(1) += (Cell(0,0), Cell(0, 2))
+//    routes(1)(1) += (Cell(1, 0), Cell(1, 2))
+//    routes(2)(1) += (Cell(2,0), Cell(2,3))
+//    routes(0)(2) += (Cell(0, 3), Cell(0, 1))
+//    routes(1)(2) += (Cell(1, 1), Cell(1, 3))
+//    routes(2)(2) += (Cell(2, 1), Cell(2, 3))
+//    routes(0)(3) += (Cell(0, 2))
+//    routes(1)(3) += (Cell(1, 2), Cell(2, 3))
+//    routes(2)(3) += (Cell(1, 3), Cell(2, 2))
+
+    val m = new Maze(routes)
+
+    val mp =  new Maze(routes.map(_.map(_.clone))) // deep copy of routes
+
+        val t = MazeTransform.transformToGrid[Int](mp, 2, 99, 100, (x, y) => { mp.regions(x, y) })
+        MazePublish.display[Int](t, (c: Int) => { if( c == 99 ) 'X' else if ( c == 100 ) ' ' else (c + 48).toChar})
+
+    mp makeALink
+
+        val tp = MazeTransform.transformToGrid[Int](mp, 2, 99, 100, (x, y) => { mp.regions(x, y) })
+        MazePublish.display[Int](tp, (c: Int) => { if( c == 99 ) 'X' else if ( c == 100 ) ' ' else (c + 48).toChar})
+
+    val (blockedCount: Int, openedCount: Int) = countOpenedAndBlocked(m, mp)
+
+    openedCount must equal(2)
+
+//    blockedCount must equal(2) // 2, for a route in each direction
+//
+//    maxRegion(mp) must equal(2)
+  }
+
 
   def maxRegion(m: Maze): Int = {
     var max = 0;
