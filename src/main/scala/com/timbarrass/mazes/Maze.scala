@@ -95,6 +95,40 @@ case class Maze(routes: Array[Array[mutable.Set[Cell]]]) {
     routes(x)(y)
   }
 
+  def makeALink: (Cell, Cell) = {
+
+    // we're only interested in making links from cells with unlinked neighbours --
+    var candidates = Vector[Cell]()
+    for (
+      y <- 0 until height;
+      x <- 0 until width
+    ) {
+      if(routes(x)(y).size < neighbours(x, y).size) {
+        candidates = candidates :+ Cell(x, y)
+      }
+    }
+
+    // at some point there won't be any more links to make. at that point,
+    // what do we do? returning null is not very pro. i could return any
+    // of the existing route pairs, and then the caller can just react as
+    // if a new link had been made. alternatively, can I use Option ... ?
+    // assuming here that we have a 00 and 01 cell.
+    if (candidates.isEmpty) {
+      return Cell(0, 0) -> Cell(0, 1)
+    }
+
+    val c = candidates(if(candidates.size > 1) r.nextInt(candidates.size - 1) else 0)
+
+    val targetCell = neighbours(c.x, c.y).diff(routes(c.x)(c.y).toVector).head
+
+    routes(c.x)(c.y).add(targetCell)
+    routes(targetCell.x)(targetCell.y).add(Cell(c.x, c.y))
+
+    Regions = identifyRegions
+
+    Cell(c.x, c.y) -> targetCell
+  }
+
   def breakALink: (Cell, Cell) = {
     val x = r.nextInt(width - 1)
     val y = r.nextInt(height - 1)
