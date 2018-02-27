@@ -201,6 +201,44 @@ class MazeTest extends FlatSpec with MustMatchers {
     //display[Int](t, (c: Int) => { if( c == 99 ) 'X' else if ( c == 100 ) ' ' else (c + 48).toChar})
   }
 
+  "breakThenJoin" must "have the desired effect repeatedly" in {
+    val routes = Array.fill[mutable.Set[Cell]](3, 4) { mutable.Set() }
+    routes(0)(0) += (Cell(1, 0), Cell(0,1))
+    routes(1)(0) += (Cell(0, 0), Cell(1,1))
+    routes(2)(0) += (Cell(2, 1))
+    routes(0)(1) += (Cell(0,0), Cell(0, 2))
+    routes(1)(1) += (Cell(1, 0), Cell(1, 2))
+    routes(2)(1) += (Cell(2,0), Cell(2,3))
+    routes(0)(2) += (Cell(0, 3), Cell(0, 1))
+    routes(1)(2) += (Cell(1, 1), Cell(1, 3))
+    routes(2)(2) += (Cell(2, 1), Cell(2, 3))
+    routes(0)(3) += (Cell(0, 2))
+    routes(1)(3) += (Cell(1, 2), Cell(2, 3))
+    routes(2)(3) += (Cell(1, 3), Cell(2, 2))
+
+    var m = new Maze(routes)
+
+    for (t <- 0 until 10) {
+      val mp =  new Maze(m.routes.map(_.map(_.clone))) // deep copy of routes
+
+      mp breakALink
+
+      val (blockedCount: Int, openedCount: Int) = countOpenedAndBlocked(m, mp)
+
+      blockedCount must equal(2) // 2, for a route in each direction
+
+      maxRegion(mp) must equal(2)
+
+      val initialRegionCount = maxRegion(mp)
+
+      mp joinRegions
+
+      maxRegion(mp) must equal(initialRegionCount - 1)
+
+      m =  new Maze(mp.routes.map(_.map(_.clone))) // deep copy of routes
+    }
+  }
+
   "joinRegions" must "form a link and cause the region count to drop by one" in {
     val routes = Array.fill[mutable.Set[Cell]](3, 4) { mutable.Set() }
     routes(0)(0) += (Cell(1, 0), Cell(0,1))

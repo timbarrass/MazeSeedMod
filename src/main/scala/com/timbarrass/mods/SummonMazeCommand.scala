@@ -2,8 +2,9 @@ package com.timbarrass.mods
 
 import java.util
 
-import akka.actor.{Actor, ActorSystem, Props}
-import com.timbarrass.mazes.{Maze, MazeTransform}
+import akka.actor.Actor.Receive
+import akka.actor.{Actor, ActorRef, ActorSystem, Props}
+import com.timbarrass.mazes.{Cell, Maze, MazePublish, MazeTransform}
 import com.typesafe.config.{Config, ConfigFactory}
 import net.minecraft.block.Block
 import net.minecraft.block.state.IBlockState
@@ -12,7 +13,7 @@ import net.minecraft.init.{Blocks, Items}
 import net.minecraft.inventory.IInventory
 import net.minecraft.item.ItemStack
 import net.minecraft.tileentity.{TileEntity, TileEntityChest}
-import net.minecraft.util.{BlockPos, ChatComponentText, EnumFacing}
+import net.minecraft.util.{BlockPos, ChatComponentText, EnumFacing, EnumParticleTypes}
 import net.minecraft.world.World
 import net.minecraft.world.chunk.Chunk
 import net.minecraftforge.items.CapabilityItemHandler
@@ -54,48 +55,66 @@ class SummonMazeCommand extends CommandBase {
   }
 
   override def processCommand(sender: ICommandSender, args: Array[String]): Unit = {
-    println("summon maze called")
-    sender.addChatMessage(new ChatComponentText("maze summoned"))
+    if(args.length != 1) {
+      sender.addChatMessage(new ChatComponentText("Try /summonmaze [make] [step]"))
 
-    // mazes are currently spawned to the south east
-    // so adding 1, 1 to player position moves it south, east
-    // south is rotation yaw 0/360
-    // east 270, north 180, west 90 (assuming sun sets in the west)
-    // from point of view of someone looking down on at the ground ...
-    // so, depending on broad direction we can keep the build loop the same
-    // but rotate the initial position around the player so that a corner
-    // or other desired point) is next to the player after spawn
-    val dir = sender.getCommandSenderEntity.rotationYaw
-    println("yaw" + sender.getCommandSenderEntity.rotationYaw)
-
-
-    var blockPos: BlockPos = sender.getPosition()
-    val world: World = sender.getEntityWorld
-    val height = 10
-    val width = 10
-    val scale = 2
-
-    val m = Maze.generateMaze(10, 10)
-    var xOffset: Int = 0
-    var yOffset: Int = 0
-    if (dir < 45 || dir >= 320) {
-      xOffset = -width / 2
-      yOffset = 1
-    }
-    if (dir >= 45 && dir < 135) {
-      xOffset = 1 + width
-      yOffset = height / 2
-    }
-    if (dir >= 135 && dir < 225) {
-      xOffset = width / 2
-      yOffset = 1 + height
-    }
-    if (dir >= 225 && dir < 320) {
-      xOffset = 1
-      yOffset = -height / 2
+      return
     }
 
-    SummonMazeCommand.BuildMaze(blockPos, world, height, width, m, xOffset + 1, yOffset + 1, Blocks.stone, Blocks.sand, scale)
+    if(args(0) == "step") {
+      println("Nudging actors ..")
+
+      SummonMazeCommand.nudgedActors.foreach((actor) => {actor ! "Nudge"})
+    }
+    else if(args(0) == "switchMode") {
+      println("Switching mode ..");
+
+      SummonMazeCommand.nudgedActors.foreach((actor) => {actor ! "SwitchMode"})
+    }
+    else {
+      println("summon maze called")
+      sender.addChatMessage(new ChatComponentText("maze summoned"))
+
+      // mazes are currently spawned to the south east
+      // so adding 1, 1 to player position moves it south, east
+      // south is rotation yaw 0/360
+      // east 270, north 180, west 90 (assuming sun sets in the west)
+      // from point of view of someone looking down on at the ground ...
+      // so, depending on broad direction we can keep the build loop the same
+      // but rotate the initial position around the player so that a corner
+      // or other desired point) is next to the player after spawn
+      val dir = sender.getCommandSenderEntity.rotationYaw
+      println("yaw" + sender.getCommandSenderEntity.rotationYaw)
+
+
+      var blockPos: BlockPos = sender.getPosition()
+      val world: World = sender.getEntityWorld
+      val height = 4
+      val width = 4
+      val scale = 2
+
+      val m = Maze.generateMaze(width, height)
+      var xOffset: Int = 0
+      var yOffset: Int = 0
+      if (dir < 45 || dir >= 320) {
+        xOffset = -width / 2
+        yOffset = 1
+      }
+      if (dir >= 45 && dir < 135) {
+        xOffset = 1 + width
+        yOffset = height / 2
+      }
+      if (dir >= 135 && dir < 225) {
+        xOffset = width / 2
+        yOffset = 1 + height
+      }
+      if (dir >= 225 && dir < 320) {
+        xOffset = 1
+        yOffset = -height / 2
+      }
+
+      SummonMazeCommand.BuildMaze(blockPos, world, height, width, m, xOffset + 1, yOffset + 1, Blocks.stone, Blocks.sand, scale)
+    }
   }
 
   override def compareTo(o: ICommand): Int = {
@@ -103,7 +122,9 @@ class SummonMazeCommand extends CommandBase {
   }
 }
 
-case class NudgedActor(m: Maze, world: World, marker: BlockPos, xOffset: Int, yOffset: Int, scale: Int) extends Actor {
+class NudgedActor(m: Maze, world: World, marker: BlockPos, xOffset: Int, yOffset: Int, scale: Int) extends Actor {
+
+  private var stepping: Boolean = false
 
   override def preStart(): Unit = {
     self ! "Nudge"
@@ -112,38 +133,72 @@ case class NudgedActor(m: Maze, world: World, marker: BlockPos, xOffset: Int, yO
   def receive = {
     case "Nudge" =>
       doWork
-      context.system.scheduler.scheduleOnce(10 seconds, self, "Nudge")
+      if (! stepping) context.system.scheduler.scheduleOnce(0.5 seconds, self, "Nudge")
+    case "SwitchMode" =>
+      stepping = ! stepping
+      self ! "Nudge"
+    case _ =>
+      println("Don't know what to do with message ")
   }
 
-  def doWork = {
-    val made = m.makeALink
+  def doWork: Unit = {
 
-    MazeTransform.clearWall(
-      scale,
-      (xWall, yWall, x, y) => {
-        val xp = xWall + xOffset + marker.getX()
-        val zp = yWall + yOffset + marker.getZ()
-        val pos: BlockPos = new BlockPos(xp, marker.getY() + 1, zp)
-        val lowerPos: BlockPos = new BlockPos(xp, marker.getY(), zp)
+    if (!world.isRemote) {
 
-        println("Made=================")
-        println(made)
-        println(xp + " " + zp)
-        println(pos)
-        println("=====================")
+      println("Before:")
+      val t = MazeTransform.transformToGrid[Int](m, 2, 999, 1000, (x, y) => { m.regions(x, y) })
+      MazePublish.display[Int](t, (c: Int) => { if( c == 999 ) 'X' else if ( c == 1000 ) ' ' else (c + 48).toChar})
 
-        SummonMazeCommand.SetBlock(world, pos, Blocks.air)
-        SummonMazeCommand.SetBlock(world, lowerPos, Blocks.air)
+      // debug
+      val md =  new Maze(m.routes.map(_.map(_.clone))) // deep copy of routes
 
-      },
-      made._1.y,
-      made._1.x,
-      made._2)
+      val broken = m.breakALink
+      val made = m.joinRegions
 
+      // don't do anything if we've made and broken the same link!
+      if(broken == made || broken == Cell(made._2.x, made._2.y) -> Cell(made._1.x, made._1.y)) {
+        println("made == broken, nothing to do")
+        return
+      }
+
+      MazeTransform.clearWall(
+        scale,
+        (xWall, yWall, x, y) => {
+
+          val xp = xWall + xOffset + marker.getX()
+          val zp = yWall + yOffset + marker.getZ()
+          val pos: BlockPos = new BlockPos(xp, marker.getY() + 10, zp)
+          val lowerPos: BlockPos = new BlockPos(xp, marker.getY() + 9, zp)
+
+          SummonMazeCommand.SetBlock(world, pos, Blocks.gravel)
+          SummonMazeCommand.SetBlock(world, lowerPos, Blocks.gravel)
+        },
+        broken._1.y,
+        broken._1.x,
+        broken._2)
+
+      MazeTransform.clearWall(
+        scale,
+        (xWall, yWall, x, y) => {
+          val xp = xWall + xOffset + marker.getX()
+          val zp = yWall + yOffset + marker.getZ()
+          val pos: BlockPos = new BlockPos(xp, marker.getY() - 1, zp)
+          val lowerPos: BlockPos = new BlockPos(xp, marker.getY() - 2, zp)
+
+          SummonMazeCommand.SetBlock(world, pos, Blocks.air)
+          SummonMazeCommand.SetBlock(world, lowerPos, Blocks.air)
+        },
+        made._1.y,
+        made._1.x,
+        made._2)
+    }
   }
 }
 
 object SummonMazeCommand {
+
+  // temp hack, not a great idea to expose this
+  var nudgedActors: Vector[ActorRef] = Vector[ActorRef]()
 
   // Handle periodic automatic changes to the maze
   // Interesting thing is that these mazes aren't persisted as mazes .. so once you've
@@ -201,7 +256,9 @@ object SummonMazeCommand {
     if (!world.isRemote) {
 
       // lookup and values here are just for doing something special with regions
-      val finalGrid = MazeTransform.transformToGrid(m, 2, 1, 0, (x, y) => { 0 })
+      val finalGrid = MazeTransform.transformToGrid(m, 2, 1, 0, (x, y) => {
+        0
+      })
 
       // first clear the ground
       for (
@@ -213,8 +270,11 @@ object SummonMazeCommand {
         val pos: BlockPos = new BlockPos(xp, blockPos.getY(), zp)
         val lowerPos: BlockPos = new BlockPos(xp, blockPos.getY() - 1, zp)
 
-        world.destroyBlock(pos, false)
-        world.destroyBlock(lowerPos, false)
+        for ( y <- -1 until 2) {
+          val pos: BlockPos = new BlockPos(xp, blockPos.getY() + y, zp)
+
+          world.destroyBlock(pos, false)
+        }
       }
 
       // lay the base
@@ -224,8 +284,6 @@ object SummonMazeCommand {
       ) {
         val xp = x + xOffset + blockPos.getX()
         val zp = z + yOffset + blockPos.getZ()
-        val pos: BlockPos = new BlockPos(xp, blockPos.getY(), zp)
-        val upperPos: BlockPos = new BlockPos(xp, blockPos.getY() + 1, zp)
         val lowerPos: BlockPos = new BlockPos(xp, blockPos.getY() - 1, zp)
 
         SetBlock(world, lowerPos, baseBlock)
@@ -237,12 +295,13 @@ object SummonMazeCommand {
       ) {
         val xp = x + xOffset + blockPos.getX()
         val zp = z + yOffset + blockPos.getZ()
-        val pos: BlockPos = new BlockPos(xp, blockPos.getY(), zp)
-        val upperPos: BlockPos = new BlockPos(xp, blockPos.getY() + 1, zp)
 
-        if (finalGrid(x)(z) == 1) {
-          SetBlock(world, pos, wallBlock)
-          SetBlock(world, upperPos, wallBlock)
+        for ( y <- 0 until 2) {
+          val pos: BlockPos = new BlockPos(xp, blockPos.getY() + y + 10, zp)
+
+          if (finalGrid(x)(z) == 1) {
+            SetBlock(world, pos, Blocks.gravel)
+          }
         }
       }
 
@@ -279,7 +338,10 @@ object SummonMazeCommand {
         world.markChunkDirty(v, null)
       }
 
-      system.actorOf(Props(new NudgedActor(m, world, blockPos, xOffset, yOffset, scale)), "NudgedActor")
+
+      // gah thread safety!
+      val actor = system.actorOf(Props(new NudgedActor(m, world, blockPos, xOffset, yOffset, scale)), "NudgedActor-" + this.nudgedActors.size)
+      nudgedActors = nudgedActors :+ actor
     }
   }
 }

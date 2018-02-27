@@ -5,6 +5,34 @@ import scala.util.Random
 
 object Maze {
 
+  def maxRegion(m: Maze): Int = {
+    var max = 0;
+    for (
+      y <- 0 until m.height;
+      x <- 0 until m.width
+    ) {
+      if( m.regions(x, y) > max ) max = m.regions(x, y)
+    }
+
+    max
+  }
+
+  def countOpenedAndBlocked(m: Maze, mp: Maze): (Int, Int) = {
+    var blockedCount = 0
+    var openedCount = 0
+
+    for {
+      y <- 0 until m.height;
+      x <- 0 until m.width
+    } {
+      if (mp(x, y).size > m(x, y).size) openedCount = openedCount + 1
+      if (mp(x, y).size < m(x, y).size) blockedCount = blockedCount + 1
+    }
+
+    (blockedCount, openedCount)
+  }
+
+
   // Generate a square-cell maze of specified size
   def generateMaze(width:Int, height:Int): Maze = {
     val neighbours = Neighbours(width, height)
@@ -87,7 +115,7 @@ case class Maze(routes: Array[Array[mutable.Set[Cell]]]) {
   val entrance: Int = if (width > 1) Random.nextInt(width - 1) else 0 // although 1 by anything maze is going to be relatively easy
 
   // instead of a raw collection present regions as a readonly custom class that we can write to
-  var Regions = identifyRegions
+  private var Regions = identifyRegions
 
   def regions(x: Int, y: Int): Int = Regions(x)(y)
 
@@ -163,7 +191,7 @@ case class Maze(routes: Array[Array[mutable.Set[Cell]]]) {
 
     Regions = identifyRegions
 
-    grey(if(grey.size > 1) r.nextInt(grey.size - 1) else 0)
+    p
   }
 
   def identifyRegions: Array[Array[Int]] = {
